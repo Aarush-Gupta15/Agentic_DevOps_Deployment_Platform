@@ -1,0 +1,35 @@
+services:
+  flask-app:
+    # Build from our Dockerfile in the current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Container name (easier than random names)
+    container_name: phase1-flask-app
+
+    # Map host port 5000 → container port 5000
+    # Access via: http://localhost:5000
+    ports:
+      - "5001:5000"  # 5000 is busy on your machine, so we use 5001
+
+    # Environment variables (override app defaults)
+    environment:
+      - APP_ENV=development
+      - PORT=5000
+
+    # Auto-restart if container crashes
+    restart: unless-stopped
+
+    # Health check — docker compose also respects this
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Mount app folder so code changes reflect WITHOUT rebuilding image
+    # Edit main.py → save → changes appear instantly (great for development!)
+    volumes:
+      - ./app:/app
