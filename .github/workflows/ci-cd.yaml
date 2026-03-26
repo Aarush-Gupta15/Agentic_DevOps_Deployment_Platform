@@ -1,48 +1,41 @@
-#
-#  CI/CD PIPELINE — Phase 3
-#  This file lives in .github/workflows/
-#  GitHub reads it automatically on every push!
+# ════════════════════════════════════════════════════════════════
+#  CI/CD PIPELINE — Phase 3 (Updated)
+#  Job 1: Build & Push image automatically ✅
+#  Job 2: Print deploy command (local cluster can't be reached)
+#  You run the deploy command manually on your Mac ✅
+# ════════════════════════════════════════════════════════════════
 
-name: CI/CD Pipeline # Name shown in GitHub Actions tab
+name: CI/CD Pipeline
 
-# ── TRIGGER ───────────────────────────────────────────────────
-# When should this pipeline run?
 on:
   push:
     branches:
-      - main # Run when code is pushed to main branch
+      - main
   pull_request:
     branches:
-      - main # Run when a PR is opened against main
+      - main
 
-# ── ENVIRONMENT VARIABLES ─────────────────────────────────────
-# Available to all jobs below
 env:
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }} # From GitHub Secrets
-  IMAGE_NAME: aarushgupta15/phase1-app # Your Docker Hub image
+  IMAGE_NAME: aarushgupta15/phase1-app
 
-#  JOB 1 — BUILD & PUSH DOCKER IMAGE
-#  Runs first. If this fails → Job 2 never runs.
+# ══════════════════════════════════════════════════════════════
+#  JOB 1 — BUILD & PUSH DOCKER IMAGE (runs automatically)
+# ══════════════════════════════════════════════════════════════
 jobs:
   build-and-push:
     name: 🐳 Build & Push Image
-    runs-on: ubuntu-latest # GitHub provides this machine for free
+    runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Download your code onto the GitHub machine
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Login to Docker Hub using your saved secrets
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # Step 3: Build image and push TWO tags:
-      #   - :latest        → always points to newest image
-      #   - :abc123def     → unique tag per commit (for rollbacks!)
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -52,55 +45,32 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-      # Step 4: Print the image digest for reference
       - name: Print image info
         run: |
           echo "✅ Image pushed: ${{ env.IMAGE_NAME }}:${{ github.sha }}"
 
   # ════════════════════════════════════════════════════════════
-  #  JOB 2 — DEPLOY TO KUBERNETES
-  #  Only runs AFTER Job 1 succeeds
-  #  Only runs on push to main (not on PRs)
+  #  JOB 2 — PRINT DEPLOY COMMAND
+  #  WHY NO AUTO-DEPLOY:
+  #  kind/minikube runs on 127.0.0.1 (your Mac only)
+  #  GitHub Actions is a remote server → can't reach local cluster
+  #  SOLUTION: CI builds & pushes ✅ → you deploy manually on Mac ✅
   # ════════════════════════════════════════════════════════════
-  deploy:
-    name: ☸️ Deploy to Kubernetes
+  notify:
+    name: 📢 Ready to Deploy
     runs-on: ubuntu-latest
-    needs: build-and-push # Wait for Job 1 to finish ✅
-    if: github.ref == 'refs/heads/main' # Only deploy from main branch
+    needs: build-and-push
+    if: github.ref == 'refs/heads/main'
 
     steps:
-      # Step 1: Download your code (need yaml files)
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # Step 2: Install kubectl on the GitHub machine
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: "latest"
-
-      # Step 3: Connect to your Kubernetes cluster
-      # KUBECONFIG is your cluster credentials stored as a GitHub Secret
-      - name: Configure kubectl
+      - name: Print deploy instructions
         run: |
-          mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > $HOME/.kube/config
-
-      # Step 4: Update deployment to use the new image tag
-      # We use the commit SHA tag → exact version, no ambiguity
-      - name: Update image in deployment
-        run: |
-          kubectl set image deployment/flask-app \
-            flask-app=${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      # Step 5: Watch the rolling update complete
-      # Fails pipeline if deployment doesn't complete in 2 minutes
-      - name: Wait for rollout
-        run: |
-          kubectl rollout status deployment/flask-app --timeout=120s
-
-      # Step 6: Confirm pods are healthy
-      - name: Verify deployment
-        run: |
-          kubectl get pods
-          echo "✅ Deployment complete!"
+          echo "================================================"
+          echo "✅ Image built and pushed successfully!"
+          echo "📦 Image: ${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "================================================"
+          echo "👇 Run these on your Mac to deploy:"
+          echo "kubectl set image deployment/flask-app flask-app=${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "kubectl rollout status deployment/flask-app"
+          echo "kubectl get pods"
+          echo "================================================"
