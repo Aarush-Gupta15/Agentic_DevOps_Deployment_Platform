@@ -31,7 +31,7 @@ COPY --from=builder /install /usr/local
 COPY app/ .
 
 # Security: run as non-root user (best practice)
-RUN useradd -m appuser
+RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
 # Document which port the app uses (doesn't actually publish it)
@@ -41,9 +41,9 @@ EXPOSE 5000
 # Docker will run this every 30s to check if container is healthy
 # Visible in: docker ps  (STATUS column → healthy / unhealthy)
 HEALTHCHECK --interval=30s \
-            --timeout=5s   \
-            --start-period=10s \
-            --retries=3 \
+  --timeout=5s   \
+  --start-period=10s \
+  --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')" \
   || exit 1
 
