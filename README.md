@@ -1,622 +1,164 @@
-# 🐳 Phase 1 — Dockerize a Python App
+# 🚀 Agentic DevOps Deployment Platform
 
-Learn Docker by building a real Flask app with health checks and logging.
+> An AI-powered DevOps system that provisions infrastructure and deploys applications automatically using natural language commands.
 
 ---
 
-## 📂 Structure
+## 💼 Interview Pitch
+
+> "I built an Agentic DevOps system where an AI agent provisions infrastructure and deploys applications dynamically using Terraform, Docker, Kubernetes, and a GitHub Actions CI/CD pipeline."
+
+---
+
+## 🏗 Project Structure
 
 ```
-phase1-docker/
-├── app/
-│   ├── main.py           # Flask app (health + logging)
+agentic-devops/
+├── app/                            # Flask application
+│   ├── main.py                     # 4 endpoints: / /health /ready /info
 │   └── requirements.txt
-├── Dockerfile            # Multi-stage build (read comments!)
-├── .dockerignore
+│
+├── terraform/                      # Infrastructure as Code (AWS EKS)
+│   ├── main.tf                     # Root — calls VPC + EKS modules
+│   ├── variables.tf                # All configurable variables
+│   ├── outputs.tf                  # Printed after apply
+│   ├── modules/
+│   │   ├── vpc/                    # VPC, Subnets, IGW, Route Table
+│   │   └── eks/                    # IAM, EKS Cluster, Node Group
+│   └── environments/
+│       ├── dev/terraform.tfvars    # t3.micro, 1 node (free tier)
+│       └── staging/terraform.tfvars
+│
+├── k8s/                            # Kubernetes manifests
+│   ├── deployment.yaml             # 2 replicas, probes, resource limits
+│   ├── service.yaml                # NodePort service
+│   └── configmap.yaml              # Environment config
+│
+├── agent/                          # AI Agent (Phase 5)
+│   └── devops_agent.py             # LangChain agent (coming soon)
+│
+├── .github/
+│   └── workflows/
+│       └── ci-cd.yaml              # GitHub Actions pipeline
+│
+├── Dockerfile                      # Multi-stage build
+├── docker-compose.yml              # Local testing
 └── README.md
 ```
 
 ---
 
-## 🧪 Step 1 — Run WITHOUT Docker first
+## 📦 Phases
 
+### ✅ Phase 1 — Dockerize a Python App
+- Flask app with `/health`, `/ready`, `/info` endpoints
+- Multi-stage Dockerfile (smaller image)
+- Structured logging on every request
+- Docker Compose for local testing
+
+**Run locally:**
 ```bash
-cd app
-pip install -r requirements.txt
-python main.py
-```
-
-Visit: http://localhost:5000
-Visit: http://localhost:5000/health
-Visit: http://localhost:5000/info
-
-**What you see in terminal:** Logs printing every request ✅
-
----
-
-## 🐳 Step 2 — Build Docker Image
-
-```bash
-# Run from the phase1-docker/ folder
-docker build -t phase1-app:latest .
-```
-
-Watch what happens:
-
-- Stage 1 (builder): installs pip packages
-- Stage 2 (runtime): copies only what's needed
-- Result: small, clean image
-
-Check image size:
-
-```bash
-docker images phase1-app
+docker compose up --build
+# Visit: http://localhost:5001/health
 ```
 
 ---
 
-## ▶️ Step 3 — Run the Container
+### ✅ Phase 2 — Kubernetes Deployment
+- 2 replicas for high availability
+- Liveness probe → K8s restarts unhealthy pods
+- Readiness probe → K8s removes unready pods from traffic
+- Resource limits (CPU + memory)
+- Deployed on kind cluster
 
+**Deploy:**
 ```bash
-docker run -d \
-  --name phase1-container \
-  -p 5000:5000 \
-  -e APP_ENV=production \
-  phase1-app:latest
-```
-
-Flags explained:
-
-- `-d` → run in background (detached)
-- `--name` → give container a name
-- `-p 5000:5000` → map host port to container port
-- `-e APP_ENV=production` → set environment variable
-
----
-
-## 🔍 Step 4 — Explore & Learn
-
-**See logs:**
-
-```bash
-docker logs phase1-container -f
-```
-
-**Check health status:**
-
-```bash
-docker ps
-# Look at the STATUS column → should say "healthy" after 30s
-```
-
-**Go inside the container:**
-
-```bash
-docker exec -it phase1-container /bin/bash
-# You're now INSIDE the container!
-# Try: ls, pwd, env, hostname
-```
-
-**Test health endpoint:**
-
-```bash
-curl http://localhost:5000/health
-curl http://localhost:5000/info
-```
-
----
-
-## 🧹 Step 5 — Cleanup
-
-```bash
-docker stop phase1-container
-docker rm phase1-container
-```
-
----
-
-## 🧠 What You Learned
-
-| Concept                      | Where                              |
-| ---------------------------- | ---------------------------------- |
-| Multi-stage builds           | Dockerfile (Stage 1 + 2)           |
-| Layer caching                | requirements.txt copied first      |
-| Non-root user                | `USER appuser` in Dockerfile       |
-| Health checks                | `/health` endpoint + HEALTHCHECK   |
-| Structured logging           | `logging.basicConfig()` in main.py |
-| Environment variables        | `-e APP_ENV=production`            |
-| Gunicorn vs Flask dev server | CMD in Dockerfile                  |
-
----
-
-## ✅ Phase 1 Complete!
-
-Next → **Phase 2: Kubernetes Deployment**
-You'll take this same Docker image and deploy it to a K8s cluster.
-
-# ☸️ Phase 2 — Kubernetes Deployment
-
-Deploy your Phase 1 Docker image to Kubernetes using Minikube (local K8s cluster).
-
----
-
-## 📂 Structure
-
-```
-phase2-kubernetes/
-└── k8s/
-    ├── deployment.yaml    # Runs your container (replicas, probes, limits)
-    ├── service.yaml       # Exposes your app to traffic
-    └── configmap.yaml     # Stores environment config
-```
-
----
-
-## 🛠 Prerequisites — Install Minikube (Local K8s)
-
-Minikube runs a real Kubernetes cluster on your Mac locally.
-
-```bash
-# Install Minikube
-brew install minikube
-
-# Install kubectl (K8s CLI)
-brew install kubectl
-
-# Start your local cluster
-minikube start
-
-# Verify cluster is running
-kubectl cluster-info
-kubectl get nodes
-```
-
----
-
-## 🐳 Step 1 — Push Phase 1 Image to Docker Hub
-
-Kubernetes pulls images from a registry — it can't use local images directly.
-
-```bash
-# Login to Docker Hub
-docker login
-
-# Tag your Phase 1 image
-docker tag phase1-app:latest YOUR_USERNAME/phase1-app:latest
-
-# Push to Docker Hub
-docker push YOUR_USERNAME/phase1-app:latest
-```
-
-Then update `deployment.yaml` line:
-
-```yaml
-image: YOUR_USERNAME/phase1-app:latest # ← replace YOUR_USERNAME
-```
-
----
-
-## 🚀 Step 2 — Deploy to Kubernetes
-
-```bash
-cd k8s/
-
-# Apply all manifests
 kubectl apply -f configmap.yaml
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
-
-# Check everything is running
 kubectl get pods
-kubectl get deployments
-kubectl get services
 ```
 
 ---
 
-## 🔍 Step 3 — Explore & Learn
+### ✅ Phase 3 — CI/CD with GitHub Actions
+- Every `git push` → auto build + push Docker image
+- Image tagged with `:latest` + `:commit-sha` (for rollbacks)
+- Prints deploy command automatically
 
-**Watch pods start up in real time:**
-
-```bash
-kubectl get pods -w
-# -w = watch (live updates)
+**Pipeline flow:**
+```
+git push → Build Image → Push to Docker Hub → Print kubectl command ✅
 ```
 
-**See pod details (great for debugging):**
-
+**Manual deploy after pipeline:**
 ```bash
-kubectl describe pod <pod-name>
-# Shows: events, probe status, resource usage, errors
-```
-
-**See logs from your Flask app:**
-
-```bash
-kubectl logs <pod-name>
-kubectl logs <pod-name> -f    # -f = follow (live logs)
-```
-
-**Go inside a pod:**
-
-```bash
-kubectl exec -it <pod-name> -- /bin/bash
-```
-
----
-
-## 🌐 Step 4 — Access Your App
-
-With Minikube + NodePort, use:
-
-```bash
-minikube service flask-app-service
-# Opens your app in browser automatically!
-```
-
-Or get the URL manually:
-
-```bash
-minikube service flask-app-service --url
-# Returns: http://192.168.x.x:XXXXX
-```
-
-Test endpoints:
-
-```bash
-curl $(minikube service flask-app-service --url)/health
-curl $(minikube service flask-app-service --url)/info
-```
-
----
-
-## 🧪 Step 5 — Test Kubernetes Features
-
-**Scale up replicas manually:**
-
-```bash
-kubectl scale deployment flask-app --replicas=4
-kubectl get pods   # See 4 pods now!
-```
-
-**Scale down:**
-
-```bash
-kubectl scale deployment flask-app --replicas=1
-```
-
-**Simulate a pod crash (K8s auto-restarts it!):**
-
-```bash
-kubectl delete pod <pod-name>
-kubectl get pods -w   # Watch K8s create a new one instantly
-```
-
-**Rolling update (deploy new image version):**
-
-```bash
-kubectl set image deployment/flask-app flask-app=YOUR_USERNAME/phase1-app:v2
+kubectl set image deployment/flask-app flask-app=aarushgupta15/phase1-app:latest
 kubectl rollout status deployment/flask-app
 ```
 
-**Rollback if something breaks:**
+---
 
+### ✅ Phase 4 — Infrastructure as Code (Terraform)
+- Provisions AWS EKS cluster using Terraform modules
+- VPC, Subnets, Security Groups, IAM Roles, Node Group
+- Remote state stored in S3
+- Dev + Staging environments separated
+
+**Deploy infrastructure:**
 ```bash
-kubectl rollout undo deployment/flask-app
+cd terraform/
+terraform init
+terraform plan -var-file=environments/dev/terraform.tfvars
+terraform apply -var-file=environments/dev/terraform.tfvars
+
+# Connect kubectl to EKS
+aws eks update-kubeconfig --region us-east-1 --name agentic-devops-dev
 ```
 
----
-
-## 🧹 Cleanup
-
+⚠️ Always destroy when done to avoid AWS charges:
 ```bash
-kubectl delete -f k8s/
-minikube stop
+terraform destroy -var-file=environments/dev/terraform.tfvars
 ```
 
 ---
 
-## 🧠 What You Learned
+### ⏳ Phase 5 — AI Agent (Coming Soon)
+- Natural language commands → DevOps actions
+- Level 1: Deploy, scale, status via chat
+- Level 2: Auto-scale based on CPU usage
+- Level 3: AI troubleshooter — reads logs, explains errors
 
-| Concept         | Where                                                  |
-| --------------- | ------------------------------------------------------ |
-| Deployment      | `deployment.yaml` — runs & manages pods                |
-| Replicas        | `replicas: 2` — 2 copies for availability              |
-| Liveness Probe  | `/health` — K8s restarts unhealthy pods                |
-| Readiness Probe | `/ready` — K8s removes unready pods from traffic       |
-| Resource Limits | `cpu/memory` — prevents one pod from hogging resources |
-| Service         | `service.yaml` — exposes pods to traffic               |
-| ConfigMap       | `configmap.yaml` — config separate from image          |
-| NodePort        | Access app from outside the cluster                    |
-| Rolling Update  | Zero-downtime deploys                                  |
-| Self-healing    | K8s auto-restarts crashed pods                         |
-
----
-
-# ✅ Phase 2 Complete!
-
-Next → **Phase 3: CI/CD with GitHub Actions**
-Every push to `main` will automatically build, push, and deploy your app!
-
----
-
-## ⚙️ Phase 3 — CI/CD with GitHub Actions
-
-Every `git push` to `main` automatically builds, pushes, and deploys your app.
-
-## 📂 Structure
-
+**Example:**
 ```
-
-your-repo/
-└── .github/
-└── workflows/
-└── ci-cd.yaml # ← GitHub reads this automatically
-
-```
-
-## 🔑 Step 1 — Add GitHub Secrets
-
-Your pipeline needs 3 secrets. Never hardcode these in code!
-
-Go to: **GitHub Repo → Settings → Secrets and variables → Actions → New repository secret**
-
-Add these 3 secrets:
-
-### Secret 1: DOCKER_USERNAME
-
-```
-
-Name: DOCKER_USERNAME
-Value: aarushgupta15
-
-```
-
-### Secret 2: DOCKER_PASSWORD
-
-```
-
-Name: DOCKER_PASSWORD
-Value: your-dockerhub-password-or-token
-
-```
-
-💡 Better: use a Docker Hub Access Token (more secure than password)
-→ Docker Hub → Account Settings → Security → New Access Token
-
-### Secret 3: KUBECONFIG
-
-This is your cluster credentials encoded in base64.
-
-```bash
-# Run this on your Mac to get the value:
-cat ~/.kube/config | base64
-# Copy the entire output → paste as the secret value
-```
-
-```
-Name:  KUBECONFIG
-Value: (paste base64 output here)
+You: "Deploy app with 3 replicas in staging"
+You: "Scale production to 5 pods"
+You: "Why is my pod crashing?"
 ```
 
 ---
 
-## 🚀 Step 2 — Push to GitHub
+## 🧠 What This Project Demonstrates
 
-```bash
-# Initialize git (if not already)
-git init
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-
-# Add all files
-git add .
-git commit -m "Phase 3: Add CI/CD pipeline"
-git push origin main
-```
-
----
-
-## 👀 Step 3 — Watch Pipeline Run
-
-1. Go to your GitHub repo
-2. Click **Actions** tab
-3. You'll see your pipeline running live!
-
-```
-✅ Build & Push Image    → ~2 minutes
-✅ Deploy to Kubernetes  → ~1 minute
-```
+| Skill | Tool |
+|---|---|
+| Containerization | Docker, multi-stage builds |
+| Container Orchestration | Kubernetes, probes, resource limits |
+| CI/CD | GitHub Actions |
+| Infrastructure as Code | Terraform, AWS EKS |
+| Cloud Infrastructure | AWS VPC, EKS, IAM, S3 |
+| AI Agents | LangChain, tool calling |
+| Python Backend | Flask, Gunicorn |
 
 ---
 
-## 🔄 How Rolling Update Works
+## 🛠 Tech Stack
 
-Every push → new image tag = commit SHA (e.g. `abc123def`)
-
-```
-kubectl set image deployment/flask-app flask-app=aarushgupta15/phase1-app:abc123def
-```
-
-Kubernetes replaces pods one by one:
-
-```
-Pod 1 (old) → terminated
-Pod 1 (new) → running ✅
-Pod 2 (old) → terminated
-Pod 2 (new) → running ✅
-Zero downtime! 🎉
-```
+`Python` `Flask` `Docker` `Kubernetes` `Terraform` `AWS EKS` `GitHub Actions` `LangChain` `kind` `kubectl`
 
 ---
 
-## ↩️ Rollback if Something Breaks
+## 👤 Author
 
-```bash
-# Undo last deployment instantly
-kubectl rollout undo deployment/flask-app
-
-# Or rollback to specific version
-kubectl rollout history deployment/flask-app
-kubectl rollout undo deployment/flask-app --to-revision=2
-```
-
----
-
-## 🧠 What You Learned
-
-| Concept        | Where                                  |
-| -------------- | -------------------------------------- |
-| CI/CD trigger  | `on: push: branches: main`             |
-| Job dependency | `needs: build-and-push`                |
-| GitHub Secrets | `${{ secrets.DOCKER_USERNAME }}`       |
-| Image tagging  | `:latest` + `:${{ github.sha }}`       |
-| Rolling update | `kubectl set image` + `rollout status` |
-| Rollback       | `kubectl rollout undo`                 |
-
----
-
-## ✅ Phase 3 Complete!
-
-Next → **Phase 4: Terraform — provision real cloud infrastructure**
-
-```
-# ⚙️ Phase 3 — CI/CD with GitHub Actions
-
-Every `git push` to `main` automatically builds, pushes, and deploys your app.
-
----
-
-## 📂 Structure
-```
-
-your-repo/
-└── .github/
-└── workflows/
-└── ci-cd.yaml # ← GitHub reads this automatically
-
-```
-
----
-
-## 🔑 Step 1 — Add GitHub Secrets
-
-Your pipeline needs 3 secrets. Never hardcode these in code!
-
-Go to: **GitHub Repo → Settings → Secrets and variables → Actions → New repository secret**
-
-Add these 3 secrets:
-
-### Secret 1: DOCKER_USERNAME
-```
-
-Name: DOCKER_USERNAME
-Value: aarushgupta15
-
-```
-
-### Secret 2: DOCKER_PASSWORD
-```
-
-Name: DOCKER_PASSWORD
-Value: your-dockerhub-password-or-token
-
-````
-💡 Better: use a Docker Hub Access Token (more secure than password)
-→ Docker Hub → Account Settings → Security → New Access Token
-
-### Secret 3: KUBECONFIG
-This is your cluster credentials encoded in base64.
-```bash
-# Run this on your Mac to get the value:
-cat ~/.kube/config | base64
-# Copy the entire output → paste as the secret value
-````
-
-```
-Name:  KUBECONFIG
-Value: (paste base64 output here)
-```
-
----
-
-## 🚀 Step 2 — Push to GitHub
-
-```bash
-# Initialize git (if not already)
-git init
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-
-# Add all files
-git add .
-git commit -m "Phase 3: Add CI/CD pipeline"
-git push origin main
-```
-
----
-
-## 👀 Step 3 — Watch Pipeline Run
-
-1. Go to your GitHub repo
-2. Click **Actions** tab
-3. You'll see your pipeline running live!
-
-```
-✅ Build & Push Image    → ~2 minutes
-✅ Deploy to Kubernetes  → ~1 minute
-```
-
----
-
-## 🔄 How Rolling Update Works
-
-Every push → new image tag = commit SHA (e.g. `abc123def`)
-
-```
-kubectl set image deployment/flask-app flask-app=aarushgupta15/phase1-app:abc123def
-```
-
-Kubernetes replaces pods one by one:
-
-```
-Pod 1 (old) → terminated
-Pod 1 (new) → running ✅
-Pod 2 (old) → terminated
-Pod 2 (new) → running ✅
-Zero downtime! 🎉
-```
-
----
-
-## ↩️ Rollback if Something Breaks
-
-```bash
-# Undo last deployment instantly
-kubectl rollout undo deployment/flask-app
-
-# Or rollback to specific version
-kubectl rollout history deployment/flask-app
-kubectl rollout undo deployment/flask-app --to-revision=2
-```
-
----
-
-## 🧠 What You Learned
-
-| Concept        | Where                                  |
-| -------------- | -------------------------------------- |
-| CI/CD trigger  | `on: push: branches: main`             |
-| Job dependency | `needs: build-and-push`                |
-| GitHub Secrets | `${{ secrets.DOCKER_USERNAME }}`       |
-| Image tagging  | `:latest` + `:${{ github.sha }}`       |
-| Rolling update | `kubectl set image` + `rollout status` |
-| Rollback       | `kubectl rollout undo`                 |
-
----
-
-## ✅ Phase 3 Complete!
-
-Next → **Phase 4: Terraform — provision real cloud infrastructure**
-
-```
-
-```
+**Aarush Gupta**
+GitHub: [@Aarush-Gupta15](https://github.com/Aarush-Gupta15)
